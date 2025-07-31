@@ -231,7 +231,7 @@ export default function Home() {
       <footer className="bg-white border-t mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            © 2024 绿幕抠像处理器. 基于 Next.js 和 Web APIs 构建.
+            © 2025 绿幕抠像处理器. 基于 Next.js 和 Web APIs 构建.
           </p>
         </div>
       </footer>
