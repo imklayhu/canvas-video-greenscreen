@@ -1,6 +1,10 @@
 # 绿幕抠像处理器
 
+[![部署状态](https://github.com/imklayhu/canvas-video-greenscreen/actions/workflows/deploy.yml/badge.svg)](https://github.com/imklayhu/canvas-video-greenscreen/actions/workflows/deploy.yml)
+
 一个基于 Next.js 的实时绿幕抠像处理应用，使用 Web Workers 和 Canvas API 实现高性能的实时图像处理。
+
+🔗 **在线演示**: [https://imklayhu.github.io/canvas-video-greenscreen](https://imklayhu.github.io/canvas-video-greenscreen)
 
 ## 功能特性
 
@@ -172,6 +176,37 @@ src/
 ## 许可证
 
 MIT License
+
+## 部署说明
+
+### GitHub Pages 自动部署
+
+本项目使用 GitHub Actions 自动部署到 GitHub Pages：
+
+1. 每次推送到 `main` 分支时，会自动触发构建和部署
+2. 构建过程会生成静态文件并部署到 GitHub Pages
+3. 部署状态可在 [Actions 页面](https://github.com/imklayhu/canvas-video-greenscreen/actions) 查看
+
+### 手动触发部署
+
+如需手动触发部署：
+
+1. 进入项目的 GitHub 仓库
+2. 点击 "Actions" 标签页
+3. 在左侧选择 "部署到GitHub Pages" 工作流
+4. 点击 "Run workflow" 按钮
+5. 选择 `main` 分支并确认
+
+### 启用 GitHub Pages
+
+首次设置时，需要在仓库设置中启用 GitHub Pages：
+
+1. 进入项目的 GitHub 仓库
+2. 点击 "Settings" 标签页
+3. 在左侧菜单中选择 "Pages"
+4. 在 "Build and deployment" 部分：
+   - Source: 选择 "GitHub Actions"
+5. 保存设置
 
 ## 更新日志
 
