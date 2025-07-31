@@ -5,11 +5,13 @@ import React, { useRef, useState, useEffect } from "react";
 interface VideoUploaderProps {
   onVideoChange: (videoElement: HTMLVideoElement, file: File) => void;
   onProcessVideo: () => void;
+  onReprocessVideo?: () => void;
 }
 
 const VideoUploader: React.FC<VideoUploaderProps> = ({
   onVideoChange,
   onProcessVideo,
+  onReprocessVideo,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -202,17 +204,29 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
 
         {/* 处理按钮 - 始终显示，但只有在videoUploaded为true时才启用 */}
         {videoPreview && (
-          <button
-            onClick={handleProcessVideo}
-            disabled={!videoUploaded}
-            className={`w-full ${
-              videoUploaded
-                ? "bg-green-500 hover:bg-green-600"
-                : "bg-gray-400"
-            } text-white px-4 py-2 rounded-lg transition-colors`}
-          >
-            处理视频（扣除绿幕）
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={handleProcessVideo}
+              disabled={!videoUploaded}
+              className={`w-full ${
+                videoUploaded
+                  ? "bg-green-500 hover:bg-green-600"
+                  : "bg-gray-400"
+              } text-white px-4 py-2 rounded-lg transition-colors`}
+            >
+              处理视频（扣除绿幕）
+            </button>
+            
+            {/* 重新处理按钮 */}
+            {onReprocessVideo && videoUploaded && (
+              <button
+                onClick={onReprocessVideo}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                重新处理视频（应用新背景）
+              </button>
+            )}
+          </div>
         )}
 
         {/* 调试信息 */}
@@ -228,6 +242,8 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
           <p>• 建议使用带有绿色背景的视频</p>
           <p>• 视频文件大小限制为 100MB</p>
           <p>• 上传后点击&quot;处理视频&quot;按钮开始扣除绿幕</p>
+          <p>• 更换背景后会自动重新处理视频</p>
+          <p>• 也可以手动点击&quot;重新处理视频&quot;按钮</p>
           <p>• 如果处理按钮未显示，请点击&quot;强制显示处理按钮&quot;</p>
         </div>
       </div>

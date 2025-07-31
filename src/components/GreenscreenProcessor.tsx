@@ -67,17 +67,42 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
     }
   };
 
-  // 将processVideo方法暴露给父组件
+  // 重新处理视频的方法（当背景变化时调用）
+  const reprocessVideo = () => {
+    if (videoSource === "file") {
+      // 清除之前的防抖定时器
+      if (reprocessTimeoutRef.current) {
+        clearTimeout(reprocessTimeoutRef.current);
+      }
+      
+      // 使用防抖机制，避免频繁重新处理
+      reprocessTimeoutRef.current = window.setTimeout(() => {
+        // 如果正在处理，先停止
+        if (isProcessing && stopProcessingRef.current) {
+          stopProcessingRef.current();
+        }
+        
+        // 重新开始处理
+        setTimeout(() => {
+          startProcessingUploadedVideo();
+        }, 50); // 短暂延迟确保停止操作完成
+      }, 200); // 200ms 防抖延迟
+    }
+  };
+
+  // 将处理方法暴露给父组件
   useEffect(() => {
     if (uploadedVideo) {
       // 将处理方法附加到uploadedVideo对象上，这样父组件可以调用它
       // 使用类型断言，避免使用any
       const videoElement = uploadedVideo as HTMLVideoElement & {
         processVideo?: () => void;
+        reprocessVideo?: () => void;
       };
       videoElement.processVideo = processVideo;
+      videoElement.reprocessVideo = reprocessVideo;
     }
-  }, [uploadedVideo, processVideo]);
+  }, [uploadedVideo, processVideo, reprocessVideo]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -100,6 +125,9 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
   const stopProcessingRef = useRef<(() => void) | null>(null);
   const useBackgroundRef = useRef(useBackground);
   const recordingTimerRef = useRef<number | null>(null);
+  const reprocessTimeoutRef = useRef<number | null>(null); // 用于防抖重新处理
+  const backgroundDataRef = useRef<ImageData | null>(null); // 缓存背景图片数据
+  const backgroundImageRef = useRef<HTMLImageElement | null>(null); // 缓存背景图片引用
 
   // 主线程绿幕处理函数 - 使用config参数进行绿幕检测
   const processGreenscreenDirect = useCallback(
@@ -112,57 +140,70 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
 
       // 检查是否有背景图片并且启用了背景合成
       const hasBackground =
-        useBackgroundRef.current && backgroundImage && backgroundImage.complete;
+        useBackgroundRef.current && backgroundImage && backgroundImage.complete && backgroundImage.naturalWidth > 0;
 
-      console.log("背景合成状态:", {
-        useBackground: useBackgroundRef.current,
-        hasBackgroundImage: !!backgroundImage,
-        isBackgroundComplete: backgroundImage?.complete,
-        hasBackground,
-        backgroundWidth: backgroundImage?.width,
-        backgroundHeight: backgroundImage?.height,
-        canvasWidth: width,
-        canvasHeight: height,
-      });
+      // 移除频繁的日志输出，只在调试时使用
+      // console.log("背景合成状态:", {
+      //   useBackground: useBackgroundRef.current,
+      //   hasBackgroundImage: !!backgroundImage,
+      //   isBackgroundComplete: backgroundImage?.complete,
+      //   naturalWidth: backgroundImage?.naturalWidth,
+      //   naturalHeight: backgroundImage?.naturalHeight,
+      //   hasBackground,
+      //   backgroundWidth: backgroundImage?.width,
+      //   backgroundHeight: backgroundImage?.height,
+      //   canvasWidth: width,
+      //   canvasHeight: height,
+      // });
 
-      // 创建临时canvas用于绘制背景（如果需要）
-      let bgCanvas: HTMLCanvasElement | null = null;
-      let bgCtx: CanvasRenderingContext2D | null = null;
+      // 使用缓存的背景数据（如果可用且尺寸匹配）
       let bgData: ImageData | null = null;
 
       if (hasBackground) {
-        try {
-          bgCanvas = document.createElement("canvas");
-          bgCanvas.width = width;
-          bgCanvas.height = height;
-          bgCtx = bgCanvas.getContext("2d");
+        // 检查是否需要更新缓存的背景数据
+        const needUpdateBackground = 
+          !backgroundDataRef.current || 
+          backgroundImageRef.current !== backgroundImage ||
+          backgroundDataRef.current.width !== width ||
+          backgroundDataRef.current.height !== height;
 
-          if (bgCtx) {
-            // 确保背景图片已加载
-            if (!backgroundImage.complete) {
-              console.log("背景图片尚未完全加载，等待加载完成");
-              backgroundImage.onload = () => {
-                console.log("背景图片加载完成");
-              };
+        if (needUpdateBackground) {
+          try {
+            const bgCanvas = document.createElement("canvas");
+            bgCanvas.width = width;
+            bgCanvas.height = height;
+            const bgCtx = bgCanvas.getContext("2d");
+
+            if (bgCtx) {
+              // 确保背景图片已加载
+              if (!backgroundImage.complete || backgroundImage.naturalWidth === 0) {
+                // console.log("背景图片尚未完全加载，等待加载完成");
+                // 等待图片加载完成
+                return imageData; // 暂时返回原始图像数据
+              }
+
+              // 绘制背景图片，缩放以适应canvas尺寸
+              bgCtx.drawImage(backgroundImage, 0, 0, width, height);
+              // 获取背景图片数据并缓存
+              backgroundDataRef.current = bgCtx.getImageData(0, 0, width, height);
+              backgroundImageRef.current = backgroundImage;
+
+              // console.log(
+              //   "背景图片已绘制到临时canvas，尺寸:",
+              //   width,
+              //   "x",
+              //   height
+              // );
+            } else {
+              console.error("无法获取背景canvas的上下文");
             }
-
-            // 绘制背景图片，缩放以适应canvas尺寸
-            bgCtx.drawImage(backgroundImage, 0, 0, width, height);
-            // 获取背景图片数据
-            bgData = bgCtx.getImageData(0, 0, width, height);
-
-            console.log(
-              "背景图片已绘制到临时canvas，尺寸:",
-              width,
-              "x",
-              height
-            );
-          } else {
-            console.error("无法获取背景canvas的上下文");
+          } catch (error) {
+            console.error("创建背景canvas时出错:", error);
           }
-        } catch (error) {
-          console.error("创建背景canvas时出错:", error);
         }
+
+        // 使用缓存的背景数据
+        bgData = backgroundDataRef.current;
       }
 
       for (let i = 0; i < data.length; i += 4) {
@@ -231,22 +272,23 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
         }
       }
 
-      // 清理临时canvas
-      if (bgCanvas) {
-        bgCanvas = null;
-      }
+      // 清理临时canvas - 不再需要，因为使用了缓存
+      // if (bgCanvas) {
+      //   bgCanvas = null;
+      // }
 
-      console.log(
-        "Direct processing:",
-        greenPixels,
-        "green pixels,",
-        transparentPixels,
-        "transparent pixels",
-        "useBackground:",
-        useBackgroundRef.current,
-        "hasBackground:",
-        hasBackground
-      );
+      // 移除频繁的日志输出，只在调试时使用
+      // console.log(
+      //   "Direct processing:",
+      //   greenPixels,
+      //   "green pixels,",
+      //   transparentPixels,
+      //   "transparent pixels",
+      //   "useBackground:",
+      //   useBackgroundRef.current,
+      //   "hasBackground:",
+      //   hasBackground
+      // );
       return new ImageData(outputData, width, height);
     },
     [backgroundImage, config] // 添加backgroundImage和config作为依赖
@@ -257,8 +299,12 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
     useBackgroundRef.current = useBackground;
     console.log("useBackground状态更新:", useBackground);
 
-    // 如果正在处理视频，并且背景设置发生变化，强制重新渲染一帧
-    if (isProcessing && canvasRef.current && videoRef.current) {
+    // 如果正在处理视频，并且背景设置发生变化，重新处理视频
+    if (isProcessing && videoSource === "file") {
+      console.log("背景设置变化，重新处理视频");
+      reprocessVideo();
+    } else if (isProcessing && canvasRef.current && videoRef.current) {
+      // 对于摄像头模式，强制重新渲染一帧
       const canvas = canvasRef.current;
       const video = videoRef.current;
       const ctx = canvas.getContext("2d", { alpha: true });
@@ -278,7 +324,53 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
         ctx.putImageData(processedData, 0, 0);
       }
     }
-  }, [useBackground, isProcessing, processGreenscreenDirect]);
+  }, [useBackground, isProcessing, videoSource, processGreenscreenDirect, reprocessVideo]);
+
+  // 监听背景图片变化
+  useEffect(() => {
+    if (backgroundImage) {
+      // 减少日志输出频率
+      // console.log("背景图片已更新:", {
+      //   src: backgroundImage.src,
+      //   complete: backgroundImage.complete,
+      //   naturalWidth: backgroundImage.naturalWidth,
+      //   naturalHeight: backgroundImage.naturalHeight,
+      // });
+
+      // 如果背景图片还没有加载完成，添加加载事件监听器
+      if (!backgroundImage.complete) {
+        const handleLoad = () => {
+          // console.log("背景图片加载完成:", {
+          //   naturalWidth: backgroundImage.naturalWidth,
+          //   naturalHeight: backgroundImage.naturalHeight,
+          // });
+          
+          // 背景图片加载完成后，如果正在处理视频，重新处理以使用新背景
+          if (isProcessing && videoSource === "file") {
+            console.log("背景图片加载完成，重新处理视频");
+            // 直接调用重新处理，不使用防抖
+            if (stopProcessingRef.current) {
+              stopProcessingRef.current();
+            }
+            setTimeout(() => {
+              startProcessingUploadedVideo();
+            }, 50);
+          }
+        };
+
+        backgroundImage.addEventListener('load', handleLoad);
+        return () => {
+          backgroundImage.removeEventListener('load', handleLoad);
+        };
+      } else {
+        // 如果背景图片已经加载完成，且正在处理视频，使用防抖重新处理
+        if (isProcessing && videoSource === "file") {
+          console.log("背景图片已加载完成，重新处理视频");
+          reprocessVideo();
+        }
+      }
+    }
+  }, [backgroundImage, isProcessing, videoSource]); // 移除 reprocessVideo 依赖，避免循环依赖
 
   // 开始处理循环
   const startProcessing = useCallback(() => {
@@ -782,6 +874,10 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
       }
       if (processedVideoUrl) {
         URL.revokeObjectURL(processedVideoUrl);
+      }
+      // 清理重新处理定时器
+      if (reprocessTimeoutRef.current) {
+        clearTimeout(reprocessTimeoutRef.current);
       }
     };
   }, [stopCamera, isRecording, stopRecording, processedVideoUrl]);

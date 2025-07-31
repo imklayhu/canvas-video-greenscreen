@@ -12,6 +12,34 @@ const BackgroundUploader: React.FC<BackgroundUploaderProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [backgroundPreview, setBackgroundPreview] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+
+  // 预设背景配置
+  const presetBackgrounds = [
+    { name: "天蓝色", color: "#87CEEB" },
+    { name: "红色", color: "#FF6B6B" },
+    { name: "青色", color: "#4ECDC4" },
+    { name: "绿色", color: "#4CAF50" },
+    { name: "紫色", color: "#9C27B0" },
+    { name: "橙色", color: "#FF9800" },
+  ];
+
+  // 创建纯色背景图片
+  const createColorBackground = (color: string): HTMLImageElement => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1920;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    
+    if (ctx) {
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -24,6 +52,7 @@ const BackgroundUploader: React.FC<BackgroundUploaderProps> = ({
     }
 
     setIsLoading(true);
+    setSelectedPreset(null); // 清除预设选择
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -44,10 +73,30 @@ const BackgroundUploader: React.FC<BackgroundUploaderProps> = ({
 
   const removeBackground = () => {
     setBackgroundPreview("");
+    setSelectedPreset(null);
     onBackgroundChange(undefined);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const selectPresetBackground = (index: number, color: string) => {
+    setIsLoading(true);
+    setSelectedPreset(index);
+    
+    // 创建纯色背景图片
+    const img = createColorBackground(color);
+    
+    img.onload = () => {
+      setBackgroundPreview(img.src);
+      onBackgroundChange(img);
+      setIsLoading(false);
+    };
+    
+    img.onerror = () => {
+      alert("背景图片创建失败");
+      setIsLoading(false);
+    };
   };
 
   return (
@@ -95,26 +144,29 @@ const BackgroundUploader: React.FC<BackgroundUploaderProps> = ({
         <div>
           <h4 className="text-sm font-medium text-gray-700 mb-2">预设背景</h4>
           <div className="grid grid-cols-3 gap-2">
-            {[
-              "87CEEB", // 天蓝色
-              "FF6B6B", // 红色
-              "4ECDC4", // 青色
-            ].map((color, index) => (
+            {presetBackgrounds.map((preset, index) => (
               <button
                 key={index}
-                onClick={() => {
-                  const img = new Image();
-                  img.onload = () => {
-                    setBackgroundPreview(
-                      `https://via.placeholder.com/400x300/${color}`
-                    );
-                    onBackgroundChange(img);
-                  };
-                  img.src = `https://via.placeholder.com/400x300/${color}`;
-                }}
-                className="w-full h-16 rounded border-2 border-gray-200 hover:border-blue-500 transition-colors"
-                style={{ backgroundColor: `#${color}` }}
-              />
+                onClick={() => selectPresetBackground(index, preset.color)}
+                disabled={isLoading}
+                className={`w-full h-16 rounded border-2 transition-all duration-200 ${
+                  selectedPreset === index
+                    ? 'border-blue-500 shadow-lg scale-105'
+                    : 'border-gray-200 hover:border-blue-300 hover:scale-102'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                style={{ backgroundColor: preset.color }}
+                title={preset.name}
+              >
+                {selectedPreset === index && (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="bg-white bg-opacity-80 rounded-full p-1">
+                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         </div>
@@ -124,6 +176,7 @@ const BackgroundUploader: React.FC<BackgroundUploaderProps> = ({
           <p>• 支持 JPG、PNG、GIF 格式</p>
           <p>• 建议使用与视频相同分辨率的图片</p>
           <p>• 图片会自动缩放以适应视频尺寸</p>
+          <p>• 更换背景后会自动重新处理视频</p>
         </div>
       </div>
     </div>
