@@ -228,7 +228,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
           <p>• 建议使用带有绿色背景的视频</p>
           <p>• 视频文件大小限制为 100MB</p>
           <p>• 上传后点击&quot;处理视频&quot;按钮开始扣除绿幕</p>
-          <p>• 如果处理按钮未显示，请点击"强制显示处理按钮"</p>
+          <p>• 如果处理按钮未显示，请点击&quot;强制显示处理按钮&quot;</p>
         </div>
       </div>
     </div>

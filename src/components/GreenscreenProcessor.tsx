@@ -21,6 +21,38 @@ interface GreenscreenProcessorProps {
   uploadedVideoFile?: File;
 }
 
+// RGB转HSL颜色转换函数
+const rgbToHsl = (r: number, g: number, b: number): { h: number; s: number; l: number } => {
+  // 将RGB值归一化到[0,1]范围
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+
+    h /= 6;
+  }
+
+  // 转换到常用范围
+  h = Math.round(h * 360);
+  s = Math.round(s * 255);
+  l = Math.round(l * 255);
+
+  return { h, s, l };
+};
+
 const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
   config,
   useBackground,
@@ -69,7 +101,7 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
   const useBackgroundRef = useRef(useBackground);
   const recordingTimerRef = useRef<number | null>(null);
 
-  // 主线程绿幕处理函数
+  // 主线程绿幕处理函数 - 使用config参数进行绿幕检测
   const processGreenscreenDirect = useCallback(
     (imageData: ImageData): ImageData => {
       const { data, width, height } = imageData;
@@ -138,20 +170,35 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
         const g = data[i + 1];
         const b = data[i + 2];
 
-        // 平衡的绿色检测
-        const isGreen = g > r && g > b && g > 25; // 适中的绿色亮度要求
+        // 使用config参数进行绿色检测
+        // 将RGB转换为HSL以便使用config中的色相、饱和度和亮度范围
+        const { h, s, l } = rgbToHsl(r, g, b);
+        
+        // 检查像素是否在绿幕范围内
+        const isInGreenRange = 
+          h >= config.hueMin && h <= config.hueMax &&
+          s >= config.saturationMin && s <= config.saturationMax &&
+          l >= config.lightnessMin && l <= config.lightnessMax;
+        
         let greenSimilarity = 0;
-
-        if (isGreen) {
-          // 计算绿色纯度
-          const total = r + g + b;
-          const greenRatio = g / total;
-          const redRatio = r / total;
-          const blueRatio = b / total;
-
-          // 平衡的条件 - 既不过于严格也不过于宽松
-          if (greenRatio > 0.35 && redRatio < 0.35 && blueRatio < 0.35) {
-            greenSimilarity = greenRatio;
+        
+        if (isInGreenRange) {
+          // 计算绿色相似度 - 基于与绿色中心的距离
+          const hueDist = Math.min(
+            Math.abs(h - (config.hueMin + config.hueMax) / 2),
+            Math.abs(h + 360 - (config.hueMin + config.hueMax) / 2)
+          ) / 180;
+          
+          const satDist = Math.abs(s - (config.saturationMin + config.saturationMax) / 2) / 255;
+          const lightDist = Math.abs(l - (config.lightnessMin + config.lightnessMax) / 2) / 255;
+          
+          // 综合距离 - 越小表示越接近绿幕中心
+          const distance = Math.sqrt(hueDist * hueDist + satDist * satDist + lightDist * lightDist);
+          
+          // 转换为相似度 - 越大表示越像绿色
+          greenSimilarity = Math.max(0, 1 - distance * (1 + config.tolerance / 100));
+          
+          if (greenSimilarity > 0.4) {
             greenPixels++;
           }
         }
@@ -202,7 +249,7 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
       );
       return new ImageData(outputData, width, height);
     },
-    []
+    [backgroundImage, config] // 添加backgroundImage和config作为依赖
   );
 
   // 更新 useBackground 引用
@@ -369,7 +416,7 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
 
     // 返回停止函数
     return stopProcessing;
-  }, []); // 移除 useBackground 依赖，避免函数重新创建
+  }, [processGreenscreenDirect]); // 添加processGreenscreenDirect作为依赖
 
   // 启动摄像头
   const startCamera = useCallback(async () => {
@@ -580,7 +627,7 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
         setError("无法处理上传的视频: " + (err as Error).message);
       }
     }
-  }, [videoSource, startProcessing, isProcessing]);
+  }, [videoSource, startProcessing, isProcessing, processGreenscreenDirect]);
 
   // 监听处理视频的请求
   useEffect(() => {
