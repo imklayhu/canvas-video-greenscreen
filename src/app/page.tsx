@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import GreenscreenProcessor from '../components/GreenscreenProcessor';
 import ConfigPanel from '../components/ConfigPanel';
 import BackgroundUploader from '../components/BackgroundUploader';
+import VideoUploader from '../components/VideoUploader';
 
 interface GreenscreenConfig {
   hueMin: number;
@@ -30,6 +31,33 @@ export default function Home() {
 
   const [useBackground, setUseBackground] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | undefined>(undefined);
+  const [uploadedVideo, setUploadedVideo] = useState<HTMLVideoElement | undefined>(undefined);
+  const [uploadedVideoFile, setUploadedVideoFile] = useState<File | undefined>(undefined);
+  
+  // 处理视频上传
+  const handleVideoChange = (videoElement: HTMLVideoElement, file: File) => {
+    setUploadedVideo(videoElement);
+    setUploadedVideoFile(file);
+  };
+  
+  // 处理视频绿幕
+  const handleProcessVideo = () => {
+    if (uploadedVideo && uploadedVideo.src) {
+      // 调用GreenscreenProcessor组件暴露的processVideo方法
+      const videoElement = uploadedVideo as HTMLVideoElement & { processVideo?: () => void };
+      if (videoElement.processVideo) {
+        videoElement.processVideo();
+      } else {
+        console.error('处理方法未找到');
+        // 尝试播放视频作为备选方案
+        if (uploadedVideo.paused) {
+          uploadedVideo.play().catch(err => {
+            console.error('无法播放视频:', err);
+          });
+        }
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -72,6 +100,8 @@ export default function Home() {
                 config={config}
                 useBackground={useBackground}
                 backgroundImage={backgroundImage}
+                uploadedVideo={uploadedVideo}
+                uploadedVideoFile={uploadedVideoFile}
               />
             </div>
           </div>
@@ -95,6 +125,12 @@ export default function Home() {
               </div>
             </div>
 
+            {/* 视频上传 */}
+            <VideoUploader 
+              onVideoChange={handleVideoChange} 
+              onProcessVideo={handleProcessVideo}
+            />
+            
             {/* 背景上传 */}
             <BackgroundUploader onBackgroundChange={setBackgroundImage} />
 

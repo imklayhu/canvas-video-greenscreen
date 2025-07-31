@@ -17,24 +17,51 @@ interface GreenscreenProcessorProps {
   config: GreenscreenConfig;
   useBackground: boolean;
   backgroundImage?: HTMLImageElement;
+  uploadedVideo?: HTMLVideoElement;
+  uploadedVideoFile?: File;
 }
 
 const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
   config,
   useBackground,
-  backgroundImage
+  backgroundImage,
+  uploadedVideo,
+  uploadedVideoFile
 }) => {
+  // 处理视频的方法，将被从外部调用
+  const processVideo = () => {
+    if (videoSource === 'file' && !isProcessing) {
+      startProcessingUploadedVideo();
+    }
+  };
+  
+  // 将processVideo方法暴露给父组件
+  useEffect(() => {
+    if (uploadedVideo) {
+      // 将处理方法附加到uploadedVideo对象上，这样父组件可以调用它
+      // 使用类型断言，避免使用any
+      const videoElement = uploadedVideo as HTMLVideoElement & { processVideo?: () => void };
+      videoElement.processVideo = processVideo;
+    }
+  }, [uploadedVideo, processVideo]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const workerRef = useRef<Worker | null>(null);
   const animationFrameRef = useRef<number>(0);
-  // const offscreenCanvasRef = useRef<OffscreenCanvas | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [fps, setFps] = useState(0);
   const [error, setError] = useState<string>('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [videoSource, setVideoSource] = useState<'camera' | 'file' | null>(null);
+  const [processedVideoUrl, setProcessedVideoUrl] = useState<string | null>(null);
+  
   const stopProcessingRef = useRef<(() => void) | null>(null);
   const useBackgroundRef = useRef(useBackground);
+  const recordingTimerRef = useRef<number | null>(null);
 
   // 主线程绿幕处理函数
   const processGreenscreenDirect = (imageData: ImageData): ImageData => {
@@ -95,15 +122,23 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
     let frameCount = 0;
     let lastTime = performance.now();
     let isRunning = true; // 使用局部变量控制循环
+    let lastLogTime = 0; // 用于限制日志输出频率
+    const lastFrameTimeRef = { current: 0 }; // 用于跟踪最后一帧的时间
+    const lastProcessedImageDataRef = { current: null as ImageData | null }; // 保存最后处理的帧
     
     const processFrame = () => {
-      console.log('processFrame called, checking conditions:', {
-        video: !!videoRef.current,
-        canvas: !!canvasRef.current,
-        isRunning,
-        videoWidth: videoRef.current?.videoWidth,
-        videoHeight: videoRef.current?.videoHeight
-      });
+      const now = performance.now();
+      // 限制日志输出频率，每秒只输出一次
+      if (now - lastLogTime > 1000) {
+        console.log('processFrame called, checking conditions:', {
+          video: !!videoRef.current,
+          canvas: !!canvasRef.current,
+          isRunning,
+          videoWidth: videoRef.current?.videoWidth,
+          videoHeight: videoRef.current?.videoHeight
+        });
+        lastLogTime = now;
+      }
       
       if (!videoRef.current || !canvasRef.current || !isRunning) {
         console.log('Processing stopped:', { 
@@ -138,19 +173,43 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
       }
 
       try {
-        // 绘制视频帧到canvas
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // 获取图像数据进行绿幕处理
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // 直接在主线程进行绿幕处理（避免Worker异步问题）
-        const processedData = processGreenscreenDirect(imageData);
-        
-        // 将处理后的图像数据绘制到canvas
-        ctx.putImageData(processedData, 0, 0);
-        
-        console.log('Frame processed successfully');
+        // 检查视频是否暂停或结束
+        if (video.paused || video.ended) {
+          // 如果有保存的最后一帧，则显示它
+          if (lastProcessedImageDataRef.current) {
+            // 限制日志输出频率
+            if (now - lastLogTime > 1000) {
+              console.log('Video paused or ended, showing last frame');
+            }
+            ctx.putImageData(lastProcessedImageDataRef.current, 0, 0);
+          } else {
+            // 如果没有保存的最后一帧，尝试继续播放视频
+            video.currentTime = 0;
+            video.play().catch(e => console.error('无法重新播放视频:', e));
+          }
+        } else {
+          // 视频正在播放，处理当前帧
+          // 绘制视频帧到canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          // 获取图像数据进行绿幕处理
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          
+          // 直接在主线程进行绿幕处理（避免Worker异步问题）
+          const processedData = processGreenscreenDirect(imageData);
+          
+          // 将处理后的图像数据绘制到canvas
+          ctx.putImageData(processedData, 0, 0);
+          
+          // 保存最后处理的帧和时间
+          lastProcessedImageDataRef.current = processedData;
+          lastFrameTimeRef.current = now;
+          
+          // 限制日志输出频率
+          if (now - lastLogTime > 1000) {
+            console.log('Frame processed successfully');
+          }
+        }
       } catch (error) {
         console.error('Error processing frame:', error);
       }
@@ -254,17 +313,278 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
       cancelAnimationFrame(animationFrameRef.current);
     }
     
-    setIsProcessing(false);
+    // 只有在视频源不是文件时才设置isProcessing为false
+    // 这样可以确保上传的视频处理完成后，isProcessing状态不会被错误地设置为false
+    if (videoSource !== 'file') {
+      setIsProcessing(false);
+    }
+  }, [videoSource]);
+
+
+
+  // 处理上传的视频
+  useEffect(() => {
+    if (uploadedVideo && uploadedVideo.src && videoRef.current) {
+      // 停止当前正在处理的视频或摄像头
+      if (isProcessing) {
+        stopCamera();
+      }
+      
+      // 设置视频源为上传的视频
+      videoRef.current.src = uploadedVideo.src;
+      videoRef.current.muted = true;
+      videoRef.current.loop = true;
+      videoRef.current.controls = true; // 允许用户控制视频播放
+      
+      // 等待视频元数据加载
+      videoRef.current.onloadedmetadata = async () => {
+        if (canvasRef.current && videoRef.current) {
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+          
+          // 设置视频源，但不自动开始处理
+          setVideoSource('file');
+          // 注意：这里不自动开始处理，等待用户点击"处理视频"按钮
+        }
+      };
+    }
+  }, [uploadedVideo, isProcessing]);
+  
+  // 开始处理上传的视频
+  const startProcessingUploadedVideo = useCallback(async () => {
+    if (videoRef.current && videoRef.current.src && videoSource === 'file') {
+      try {
+        // 确保视频已加载
+        if (videoRef.current.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            videoRef.current!.onloadeddata = () => resolve();
+          });
+        }
+        
+        // 设置视频循环播放
+        videoRef.current.loop = true;
+        // 设置视频播放速度（可选，如果视频太短，可以降低播放速度）
+        // videoRef.current.playbackRate = 0.5; // 半速播放
+        
+        // 开始播放视频
+        await videoRef.current.play();
+        
+        // 开始处理
+        setIsProcessing(true);
+        stopProcessingRef.current = startProcessing();
+        
+        console.log('开始处理上传的视频');
+        
+        // 添加视频结束事件监听器，确保视频结束后重新开始播放
+        const handleVideoEnd = () => {
+          console.log('视频播放结束，重新开始播放');
+          if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play().catch(e => console.error('重新播放视频失败:', e));
+          }
+        };
+        
+        // 添加视频暂停事件监听器，确保视频不会意外暂停
+        const handleVideoPause = () => {
+          console.log('视频暂停，尝试继续播放');
+          if (videoRef.current && isProcessing) {
+            videoRef.current.play().catch(e => console.error('继续播放视频失败:', e));
+          }
+        };
+        
+        // 添加视频错误事件监听器
+        const handleVideoError = (e: Event) => {
+          console.error('视频播放错误:', e);
+          // 尝试重新加载视频
+          if (videoRef.current && videoRef.current.src) {
+            const currentSrc = videoRef.current.src;
+            videoRef.current.src = '';
+            setTimeout(() => {
+              if (videoRef.current) {
+                videoRef.current.src = currentSrc;
+                videoRef.current.play().catch(e => console.error('重新加载视频失败:', e));
+              }
+            }, 100);
+          }
+        };
+        
+        videoRef.current.addEventListener('ended', handleVideoEnd);
+        videoRef.current.addEventListener('pause', handleVideoPause);
+        videoRef.current.addEventListener('error', handleVideoError);
+        
+        // 确保处理状态持续，即使视频很短
+        const keepProcessingInterval = setInterval(() => {
+          if (videoRef.current && !videoRef.current.paused && !isProcessing) {
+            console.log('检测到处理状态丢失，重新启动处理');
+            setIsProcessing(true);
+            if (!stopProcessingRef.current) {
+              stopProcessingRef.current = startProcessing();
+            }
+          }
+        }, 1000); // 每秒检查一次
+        
+        // 返回清理函数
+        return () => {
+          if (videoRef.current) {
+            videoRef.current.removeEventListener('ended', handleVideoEnd);
+            videoRef.current.removeEventListener('pause', handleVideoPause);
+            videoRef.current.removeEventListener('error', handleVideoError);
+          }
+          clearInterval(keepProcessingInterval);
+        };
+      } catch (err) {
+        console.error('Error processing uploaded video:', err);
+        setError('无法处理上传的视频: ' + (err as Error).message);
+      }
+    }
+  }, [videoSource, startProcessing, isProcessing]);
+  
+  // 监听处理视频的请求
+  useEffect(() => {
+    if (uploadedVideo && videoSource === 'file' && !isProcessing) {
+      // 当用户点击"处理视频"按钮时，会触发uploadedVideo.play()
+      // 这里监听play事件来开始处理
+      const handlePlay = () => {
+        if (!isProcessing) {
+          startProcessingUploadedVideo();
+        }
+      };
+      
+      uploadedVideo.addEventListener('play', handlePlay);
+      
+      return () => {
+        uploadedVideo.removeEventListener('play', handlePlay);
+      };
+    }
+  }, [uploadedVideo, videoSource, isProcessing, startProcessingUploadedVideo]);
+
+  // 开始录制
+  const startRecording = useCallback(() => {
+    if (!canvasRef.current || !isProcessing) {
+      console.error('Cannot start recording: Canvas not available or processing not active');
+      return;
+    }
+    
+    try {
+      // 重置录制状态
+      recordedChunksRef.current = [];
+      setRecordingTime(0);
+      
+      // 创建媒体流
+      const stream = canvasRef.current.captureStream(30); // 30fps
+      
+      // 创建MediaRecorder
+      const options = { mimeType: 'video/webm;codecs=vp9' };
+      const mediaRecorder = new MediaRecorder(stream, options);
+      
+      // 设置数据处理
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      // 录制完成处理
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        setProcessedVideoUrl(url);
+      };
+      
+      // 开始录制
+      mediaRecorder.start(1000); // 每秒获取一次数据
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      
+      // 开始计时
+      const startTime = Date.now();
+      recordingTimerRef.current = window.setInterval(() => {
+        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+        setRecordingTime(elapsedSeconds);
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Recording error:', err);
+      setError('无法开始录制: ' + (err as Error).message);
+    }
+  }, [isProcessing]);
+  
+  // 停止录制
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    
+    setIsRecording(false);
   }, []);
-
-
+  
+  // 导出处理后的视频
+  const exportProcessedVideo = useCallback(() => {
+    if (!processedVideoUrl) {
+      console.error('No processed video available to export');
+      return;
+    }
+    
+    // 创建下载链接
+    const a = document.createElement('a');
+    a.href = processedVideoUrl;
+    
+    // 设置文件名
+    let filename = 'processed-video.webm';
+    if (videoSource === 'file' && uploadedVideoFile) {
+      // 从原始文件名派生新文件名
+      const originalName = uploadedVideoFile.name;
+      const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+      filename = `${nameWithoutExt}-processed.webm`;
+    }
+    
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [processedVideoUrl, videoSource, uploadedVideoFile]);
+  
+  // 导出当前帧为图片
+  const exportCurrentFrame = useCallback(() => {
+    if (!canvasRef.current || !isProcessing) {
+      console.error('Cannot export frame: Canvas not available or processing not active');
+      return;
+    }
+    
+    try {
+      // 将当前Canvas内容转换为图片URL
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'greenscreen-frame.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Frame export error:', err);
+      setError('无法导出当前帧: ' + (err as Error).message);
+    }
+  }, [isProcessing]);
 
   // 组件卸载时清理
   useEffect(() => {
     return () => {
       stopCamera();
+      if (isRecording) {
+        stopRecording();
+      }
+      if (processedVideoUrl) {
+        URL.revokeObjectURL(processedVideoUrl);
+      }
     };
-  }, [stopCamera]);
+  }, [stopCamera, isRecording, stopRecording, processedVideoUrl]);
 
   return (
     <div className="flex flex-col items-center space-y-4">
@@ -323,23 +643,77 @@ const GreenscreenProcessor: React.FC<GreenscreenProcessorProps> = ({
       </div>
 
       {/* 控制按钮 */}
-      <div className="flex space-x-4">
-        {!isProcessing ? (
+      <div className="flex flex-wrap gap-4 justify-center">
+        {/* 摄像头控制 */}
+        {videoSource !== 'file' && (
+          !isProcessing ? (
+            <button
+              onClick={startCamera}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              启动摄像头
+            </button>
+          ) : (
+            <button
+              onClick={stopCamera}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              停止摄像头
+            </button>
+          )
+        )}
+        
+        {/* 录制控制 */}
+        {isProcessing && !isRecording && (
           <button
-            onClick={startCamera}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+            onClick={startRecording}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
           >
-            启动摄像头
+            <span className="mr-2">●</span> 开始录制
           </button>
-        ) : (
+        )}
+        
+        {isRecording && (
           <button
-            onClick={stopCamera}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+            onClick={stopRecording}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
           >
-            停止摄像头
+            <span className="mr-2">■</span> 停止录制 ({recordingTime}秒)
+          </button>
+        )}
+        
+        {/* 导出按钮 */}
+        {processedVideoUrl && (
+          <button
+            onClick={exportProcessedVideo}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            导出视频
+          </button>
+        )}
+        
+        {/* 导出当前帧 */}
+        {isProcessing && (
+          <button
+            onClick={exportCurrentFrame}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            导出当前帧
           </button>
         )}
       </div>
+      
+      {/* 处理后的视频预览 */}
+      {processedVideoUrl && (
+        <div className="mt-4 w-full">
+          <h3 className="text-lg font-semibold mb-2">处理后的视频</h3>
+          <video 
+            src={processedVideoUrl} 
+            controls 
+            className="w-full border rounded-lg shadow-sm"
+          />
+        </div>
+      )}
 
       {/* 错误信息 */}
       {error && (

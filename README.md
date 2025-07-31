@@ -9,6 +9,9 @@
 ## 功能特性
 
 - 🎥 **实时摄像头处理** - 支持访问笔记本电脑摄像头进行实时绿幕抠像
+- 📹 **视频文件处理** - 支持上传带绿幕的视频文件进行处理
+- 🎬 **录制功能** - 支持录制处理后的视频并导出
+- 📸 **帧导出** - 支持导出当前处理帧为图片
 - 🎨 **智能绿幕检测** - 基于 HSL 颜色空间的精确绿幕检测算法
 - ⚡ **高性能处理** - 使用 Web Workers 和 requestAnimationFrame 实现流畅的 60fps 处理
 - 🖼️ **背景合成** - 支持自定义背景图片合成
@@ -126,7 +129,8 @@ src/
 ├── components/
 │   ├── GreenscreenProcessor.tsx  # 核心处理组件
 │   ├── ConfigPanel.tsx           # 参数配置面板
-│   └── BackgroundUploader.tsx    # 背景上传组件
+│   ├── BackgroundUploader.tsx    # 背景上传组件
+│   └── VideoUploader.tsx         # 视频上传组件
 └── public/
     └── greenscreen-worker.js     # Web Worker 脚本
 ```
@@ -209,6 +213,12 @@ MIT License
 5. 保存设置
 
 ## 更新日志
+
+### v1.1.0
+- 添加视频文件上传功能，支持处理带绿幕的视频文件
+- 添加录制功能，支持录制处理后的视频并导出
+- 添加帧导出功能，支持导出当前处理帧为图片
+- 优化用户界面，提升用户体验
 
 ### v1.0.0
 - 初始版本发布
