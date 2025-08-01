@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# 允许所有搜索引擎爬取
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# 禁止爬取API和私有页面
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# 站点地图
+Sitemap: https://greenscreen-processor.com/sitemap.xml
+
+# 爬取延迟（秒）
+Crawl-delay: 1

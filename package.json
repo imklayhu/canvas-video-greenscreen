@@ -1,7 +1,27 @@
 {
-  "name": "canvas-video-greenscreen",
-  "version": "0.1.0",
-  "private": true,
+  "name": "greenscreen-processor",
+  "version": "1.0.0",
+  "private": false,
+  "description": "专业的在线绿幕抠像处理器，支持实时摄像头绿幕抠像、视频背景替换、自定义背景合成",
+  "keywords": [
+    "绿幕抠像",
+    "视频背景替换",
+    "绿幕处理",
+    "在线视频编辑",
+    "背景合成",
+    "视频抠像",
+    "绿幕去除",
+    "视频特效",
+    "在线工具",
+    "视频处理"
+  ],
+  "author": "绿幕抠像处理器",
+  "license": "MIT",
+  "homepage": "https://greenscreen-processor.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imklayhu/canvas-video-greenscreen"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",

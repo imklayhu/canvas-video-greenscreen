@@ -5,6 +5,8 @@ import GreenscreenProcessor from "../components/GreenscreenProcessor";
 import ConfigPanel from "../components/ConfigPanel";
 import BackgroundUploader from "../components/BackgroundUploader";
 import VideoUploader from "../components/VideoUploader";
+import WebAppStructuredData from "../components/WebAppStructuredData";
+import FAQStructuredData from "../components/FAQStructuredData";
 
 interface GreenscreenConfig {
   hueMin: number;
@@ -84,46 +86,53 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* 头部 */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                绿幕抠像处理器
-              </h1>
-              <p className="text-gray-600 mt-1">
-                实时摄像头绿幕抠像处理，支持自定义背景
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <a
-                href="https://github.com/imklayhu/canvas-video-greenscreen"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
+    <>
+      {/* 结构化数据 */}
+      <WebAppStructuredData />
+      <FAQStructuredData />
+      
+      <div className="min-h-screen bg-gray-100">
+        {/* 头部 */}
+        <header className="bg-white shadow-sm" role="banner">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  绿幕抠像处理器
+                </h1>
+                <p className="text-gray-600 mt-1">
+                  专业的在线视频背景替换工具，支持实时摄像头绿幕抠像处理，自定义背景合成
+                </p>
+              </div>
+              <nav className="flex items-center space-x-4" role="navigation" aria-label="主要导航">
+                <a
+                  href="https://github.com/imklayhu/canvas-video-greenscreen"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="访问GitHub仓库"
                 >
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
-              </a>
+                  <svg
+                    className="w-6 h-6"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                  </svg>
+                </a>
+              </nav>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       {/* 主要内容 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 左侧：视频处理区域 */}
-          <div className="lg:col-span-2">
+          <article className="lg:col-span-2">
             <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h2 className="text-xl font-semibold mb-4">实时处理</h2>
+              <h2 className="text-xl font-semibold mb-4">实时视频处理</h2>
               <GreenscreenProcessor
                 config={config}
                 useBackground={useBackground}
@@ -132,10 +141,10 @@ export default function Home() {
                 uploadedVideoFile={uploadedVideoFile}
               />
             </div>
-          </div>
+          </article>
 
           {/* 右侧：控制面板 */}
-          <div className="space-y-6">
+          <aside className="space-y-6" role="complementary" aria-label="控制面板">
             {/* 背景开关 */}
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <h3 className="text-lg font-semibold mb-4">背景设置</h3>
@@ -178,14 +187,14 @@ export default function Home() {
 
             {/* 参数配置 */}
             <ConfigPanel config={config} onConfigChange={setConfig} />
-          </div>
-        </div>
+          </aside>
+        </section>
 
         {/* 使用说明 */}
-        <div className="mt-8 bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold mb-4">使用说明</h2>
+        <section className="mt-8 bg-white p-6 rounded-lg shadow-lg" aria-labelledby="usage-guide">
+          <h2 id="usage-guide" className="text-xl font-semibold mb-4">使用说明</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
+            <article>
               <h3 className="font-medium text-gray-900 mb-2">准备工作</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>• 确保有绿色背景布或绿色墙面</li>
@@ -193,8 +202,8 @@ export default function Home() {
                 <li>• 摄像头与背景保持适当距离</li>
                 <li>• 避免穿着绿色衣物</li>
               </ul>
-            </div>
-            <div>
+            </article>
+            <article>
               <h3 className="font-medium text-gray-900 mb-2">参数调整</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>• 色相范围：调整绿色检测范围</li>
@@ -203,32 +212,32 @@ export default function Home() {
                 <li>• 容差：控制边缘过渡效果</li>
                 <li>• 羽化：平滑边缘处理</li>
               </ul>
-            </div>
+            </article>
           </div>
-        </div>
+        </section>
 
         {/* 技术特性 */}
-        <div className="mt-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">技术特性</h2>
+        <section className="mt-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-lg" aria-labelledby="tech-features">
+          <h2 id="tech-features" className="text-xl font-semibold mb-4">技术特性</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
+            <article>
               <h3 className="font-medium mb-2">高性能处理</h3>
               <p>使用 Web Workers 和 OffscreenCanvas 实现高性能实时处理</p>
-            </div>
-            <div>
+            </article>
+            <article>
               <h3 className="font-medium mb-2">实时渲染</h3>
               <p>基于 requestAnimationFrame 的流畅 60fps 实时渲染</p>
-            </div>
-            <div>
+            </article>
+            <article>
               <h3 className="font-medium mb-2">智能算法</h3>
               <p>HSL 颜色空间绿幕检测算法，支持边缘羽化和背景合成</p>
-            </div>
+            </article>
           </div>
-        </div>
+        </section>
       </main>
 
       {/* 页脚 */}
-      <footer className="bg-white border-t mt-12">
+      <footer className="bg-white border-t mt-12" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
             © 2025 绿幕抠像处理器. 基于 Next.js 和 Web APIs 构建.
@@ -236,5 +245,6 @@ export default function Home() {
         </div>
       </footer>
     </div>
+    </>
   );
 }
